@@ -2,10 +2,9 @@ import itertools
 import numpy as np
 import array
 
-
 class Sphere:
-    def __init__(self, color, ka, kd, ks, eta, kr, kt, n, center, radius) -> None:
 
+    def __init__(self, color, ka, kd, ks, eta, kr, kt, n, center, radius) -> None:
         self.color = color
         self.ka = ka
         self.kd = kd
@@ -19,7 +18,6 @@ class Sphere:
 
     # encontra intersseção com a esfera
     def intersect(self, O, d):
-
         l = self.center - O
         t_ca = np.dot(l, d)
         d_squared = np.dot(l, l) - t_ca**2
@@ -43,24 +41,20 @@ class Sphere:
 
         n = self.n
         cos_theta = np.dot(normal, omega)
-
         if cos_theta < 0:
             normal = -1*normal
             n = 1/n
             cos_theta = -cos_theta
-
         delta = 1 - (n**(-2))*(1 - cos_theta**2)
         if delta < 0:
-            raise Exception 
-        
-        result = (-1/n)*omega - (delta**(1/2) -  cos_theta/n)*normal
-        return result
+            raise Exception
+        return (-1/n)*omega - (delta**(1/2) -  cos_theta/n)*normal
 
     # retorna cor do ponto atingido
-    def shade(self, P, omega, normal, background_light, pls, objects):
+    def shade(self, P, omega, normal, background_light, lights, objects):
 
-        color_point = self.ka * self.color * background_light / 255
-        for light_color, light_point in pls:
+        cp = self.ka * self.color * background_light / 255
+        for light_color, light_point in lights:
             l = (light_point - P)/np.linalg.norm(light_point - P)
             r = reflect(l, normal)
             _P = P + 0.00001*l
@@ -71,10 +65,11 @@ class Sphere:
                 t = 0
             if (not S) or (np.dot(l, light_point - _P) < t):
                 if np.dot(normal, l) > 0:
-                    color_point = color_point + self.kd*self.color*np.dot(normal, l)*light_color / 255
+                    cp = cp + self.kd*self.color*np.dot(normal, l)*light_color / 255
                 if np.dot(omega, r) > 0:
-                    color_point = color_point + self.ks*(np.dot(omega, r)**self.eta)*light_color
-        return color_point
+                    cp = cp + self.ks*(np.dot(omega, r)**self.eta)*light_color
+        return cp
+
     # vetor unitário normal à superfície da esfera
     def normal_point(self, P):
 
@@ -113,25 +108,20 @@ class Plane:
 
         n = self.n
         cos_theta = np.dot(normal, omega)
-
         if cos_theta < 0:
             normal = -1*normal
             n = 1/n
             cos_theta = -cos_theta
-        
         delta = 1 - (n**(-2))*(1 - cos_theta**2)
-
         if delta < 0:
             raise Exception
-
-        result = (-1/n)*omega - (delta**(1/2) -  cos_theta/n)*normal
-        return result
+        return (-1/n)*omega - (delta**(1/2) -  cos_theta/n)*normal
 
     # retorna cor do ponto atingido
-    def shade(self, P, omega, normal, background_light, pls, objects):
+    def shade(self, P, omega, normal, background_light, lights, objects):
 
-        color_point = self.ka * self.color * background_light / 255
-        for light_color, light_point in pls:
+        cp = self.ka * self.color * background_light / 255
+        for light_color, light_point in lights:
             l = (light_point - P)/np.linalg.norm(light_point - P)
             r = reflect(l, normal)
             _P = P + 0.00001*l
@@ -142,10 +132,10 @@ class Plane:
                 t = 0
             if (not S) or (np.dot(l, light_point - _P) < t):
                 if np.dot(normal, l) > 0:
-                    color_point = color_point + self.kd*self.color*np.dot(normal, l)*light_color / 255
+                    cp = cp + self.kd*self.color*np.dot(normal, l)*light_color / 255
                 if np.dot(omega, r) > 0:
-                    color_point = color_point + self.ks*(np.dot(omega, r)**self.eta)*light_color
-        return color_point
+                    cp = cp + self.ks*(np.dot(omega, r)**self.eta)*light_color
+        return cp
 
     # vetor unitário normal à superfície da esfera
     def normal_point(self, P):
@@ -170,15 +160,16 @@ def trace(O, d, objects):
     return S
 
 # age recursivamente -  retorna cor do objeto mais proximo atingido pelo raio
-def cast(O, d, k, background_color, background_light, pls, objects):
-    color_point = background_color
+def cast(O, d, k, background_color, background_light, lights, objects):
+    O = O + 0.00001*d
+    cp = background_color
     S = trace(O, d, objects)
     if S:
         t, obj = min(S, key=lambda x: x[0])
         P = O + t*d
         omega = -1*d
         normal = obj.normal_point(P)
-        color_point = obj.shade(P, omega, normal, background_light, pls, objects)
+        cp = obj.shade(P, omega, normal, background_light, lights, objects)
         if k > 0:
             r = reflect(omega, normal)
             _P = P + 0.00001*r
@@ -186,22 +177,23 @@ def cast(O, d, k, background_color, background_light, pls, objects):
                 if obj.kt > 0:
                     r_t = obj.refract(omega, normal)
                     _P_t = P + 0.00001*r_t
-                    color_point = color_point + obj.kt*cast((_P_t  + 0.00001*r_t), r_t, k-1, background_color, background_light, pls, objects)
+                    cp = cp + obj.kt*cast(_P_t, r_t, k-1, background_color, background_light, lights, objects)
                 if obj.kr > 0:
-                    color_point = color_point + obj.kr*cast((_P + 0.00001*r), r, k-1, background_color, background_light, pls, objects)
+                    cp = cp + obj.kr*cast(_P, r, k-1, background_color, background_light, lights, objects)
             except:
-                color_point = color_point + cast((_P + 0.00001*r), r, k-1, background_color, background_light, pls, objects)
-    return np.array([min(255, elem) for elem in color_point])
-
+                cp = cp + cast(_P, r, k-1, background_color, background_light, lights, objects)
+    return np.array([min(255, elem) for elem in cp])
 
 # inicia e junta a imagem através da chamada do cast
-def render(v_res, h_res, s, d, e, l, up, max_depth,  background_color, background_light, pls, objects):
+def render(v_res, h_res, s, d, e, l, up, max_depth,  background_color, background_light, lights, objects):
     img = np.array([[np.array([0, 0, 0])]*h_res]*v_res)
-    
+
     w = e-l
     w = w/np.linalg.norm(w)
+
     u = np.cross(up, w)
     u = u/np.linalg.norm(u)
+
     v = np.cross(w, u)
 
     q0 = e-(d*w)+s*((v*((v_res-1)/2))-(u*((h_res-1)/2)))
@@ -209,91 +201,82 @@ def render(v_res, h_res, s, d, e, l, up, max_depth,  background_color, backgroun
     for (i, j) in itertools.product(range(v_res), range(h_res)):
         q = q0+s*((j*u)-(i*v))-e
         q = q/np.linalg.norm(q)
-        img[i][j] = cast((e + 0.00001*q), q, max_depth, background_color, background_light, pls, objects)
+        img[i][j] = cast(e, q, max_depth, background_color, background_light, lights, objects)
 
     return img
 
-
-# main
 if __name__ == '__main__':
+    
+    with open('input.txt', 'r') as f:
 
-    with open('input.txt', 'r') as file:
-
-        ''' parâmetros da câmera '''
         # números de linhas e colunas
-        v_res, h_res = [int(n) for n in file.readline().split(' ')]
+        v_res, h_res = [int(n) for n in f.readline().split(' ')]
         # tamanho do lado dos pixels e distancia focal
-        s, d = [float(n) for n in file.readline().split(' ')]
+        s, d = [float(n) for n in f.readline().split(' ')]
         # foco
-        e = np.array([float(n) for n in file.readline().split(' ')])
+        e = np.array([float(n) for n in f.readline().split(' ')])
         # mira
-        l = np.array([float(n) for n in file.readline().split(' ')])
+        l = np.array([float(n) for n in f.readline().split(' ')])
         # vetor apontando pra cima
-        up = np.array([float(n) for n in file.readline().split(' ')])
+        up = np.array([float(n) for n in f.readline().split(' ')])
         # cor do plano de fundo
-        background_color = np.array([float(n) for n in file.readline().split(' ')])
+        background_color = np.array([float(n) for n in f.readline().split(' ')])
         # tamanho máximo da recursão
-        max_depth = int(file.readline())
+        max_depth = int(f.readline())
         # número de objetos
-        k_obj = int(file.readline())
-        
+        k_objs = int(f.readline())
         objects = []
 
+        for k in range(k_objs): # itera sobre os objetos para salvar seus atributos
 
-        for _ in range(k_obj): # itera sobre os objetos para salvar seus atributos
-
-            attributes = file.readline().split(' ')
-            color = np.array([float(x) for x in attributes[:3]])
-            ka = float(attributes[3])
-            kd = float(attributes[4])
-            ks = float(attributes[5])
-            eta = float(attributes[6])
+            line = f.readline()
+            split = line.split(' ')
+            element = split[10]
+            color = np.array([float(n) for n in split[:3]])
+            ka = float(split[3])
+            kd = float(split[4])
+            ks = float(split[5])
+            eta = float(split[6])
             # reflexão
-            kr = float(attributes[7])
+            kr = float(split[7])
             # transparência e ́ındice de refração
-            kt = float(attributes[8])
-            n = float(attributes[9])
+            kt = float(split[8])
+            n = float(split[9])
 
-            element = attributes[10]
-            
             # elemento é uma esfera 
             if element == '*':
-
-                center = np.array([float(n) for n in attributes[11:14]])
-                radius = float(attributes[14])
+                center = np.array([float(n) for n in split[11:14]])
+                radius = float(split[14])
                 sphere = Sphere(color, ka, kd, ks, eta, kr, kt, n, center, radius)
                 objects.append(sphere)
-            
+
             # elemento é um plano
             if element == '/':
-
-                point = np.array([float(n) for n in attributes[11:14]])
-                normal = np.array([float(n) for n in attributes[14:]])
+                point = np.array([float(n) for n in split[11:14]])
+                normal = np.array([float(n) for n in split[14:]])
                 plane = Plane(color, ka, kd, ks, eta, kr, kt, n, point, normal)
                 objects.append(plane)
         
         # luzes da cena
-        background_light = np.array([float(n) for n in file.readline().split(' ')])
+        background_light = np.array([float(n) for n in f.readline().split(' ')])
         # número de fontes pontuais
-        k_pl = int(file.readline())
+        k_lights = int(f.readline())
+        lights = []
 
-        pls = []
-
-        for _ in range(k_pl): # itera sobre as fontes pontuais de luz para salvar seus atributos
+        for k in range(k_lights): # itera sobre as fontes pontuais de luz para salvar seus atributos
             
-            attributes = file.readline().split(' ')
+            line = f.readline()
+            split = line.split(' ')
             # cor
-            c = np.array([float(n) for n in attributes[:3]])
+            i = np.array([float(n) for n in split[:3]])
             # localização
-            l = np.array([float(n) for n in attributes[3:]])
-            pl = (c, l)
-            pls.append(pl)
+            p = np.array([float(n) for n in split[3:]])
+            _t = (i, p)
+            lights.append(_t)
     
     # chama a funcao render pra retornar imagem (cor de cada pixel)
-    pic = render(v_res, h_res, s, d, e, l, up, max_depth,  background_color, background_light, pls, objects)
-    
-    # realiza escrita da imagem de saída
+    img = render(v_res, h_res, s, d, e, l, up, max_depth,  background_color, background_light, lights, objects)
     with open('output.ppm', 'wb') as f:
         f.write(bytearray(f'P6 {h_res} {v_res} 255\n', 'ascii'))
-        byteimg = array.array('B', list(pic.flatten()))
+        byteimg = array.array('B', list(img.flatten()))
         byteimg.tofile(f)
