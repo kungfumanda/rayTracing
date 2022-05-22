@@ -4,7 +4,7 @@ Este projeto foi feito como parte da disciplina Processamento Gráfico.
 
 Alunos:
  - Amanda Nunes Silvestre Costa (ansc)
- - inserir nomes
+ - Pedro Henrique Vieira de Moura (phvm)
  
 # Como rodar
 
